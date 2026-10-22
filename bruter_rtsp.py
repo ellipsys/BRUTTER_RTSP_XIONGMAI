@@ -173,9 +173,24 @@ def run_brute(ip):
     return list(result_rtsp)
 
 
+def load_ips(path):
+    """Lee IPs de un archivo txt (una por línea). Ignora vacías, duplicados y comentarios (#)."""
+    ips = []
+    seen = set()
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            ip = line.strip()
+            if not ip or ip.startswith("#"):
+                continue
+            if ip not in seen:
+                seen.add(ip)
+                ips.append(ip)
+    return ips
+
+
 def main():
     if len(sys.argv) < 2:
-        print("Uso: python bruter_rtsp.py <IP>")
+        print("Uso: python bruter_rtsp.py <archivo_ips.txt> [salida.txt]")
         sys.exit(1)
 
     if os.name == "nt":
@@ -183,15 +198,38 @@ def main():
     else:
         os.system("clear")
 
-    ip = sys.argv[1]
-    rtsp_works = run_brute(ip)
+    input_path = sys.argv[1]
+    output_path = sys.argv[2] if len(sys.argv) > 2 else "rtsp_validos.txt"
 
-    if rtsp_works:
-        print(f"\n[+] Encontrado al menos un RTSP válido ({len(rtsp_works)}):")
-        for url in rtsp_works:
-            print(f"\t- {url}")
-        sys.exit(0)
-    print(f"\n[-] No se encontró RTSP para {ip}")
+    if not os.path.isfile(input_path):
+        print(f"[-] No existe el archivo de entrada: {input_path}")
+        sys.exit(1)
+
+    ips = load_ips(input_path)
+    if not ips:
+        print(f"[-] No hay IPs válidas en {input_path}")
+        sys.exit(1)
+
+    print(f"[*] {len(ips)} IPs cargadas de {input_path}. Salida -> {output_path}\n")
+
+    found = 0
+    # abrir salida en modo append con flush por IP: resultados persisten aunque se corte
+    with open(output_path, "w", encoding="utf-8") as out:
+        for idx, ip in enumerate(ips, 1):
+            print(f"\n===== [{idx}/{len(ips)}] IP: {ip} =====")
+            rtsp_works = run_brute(ip)
+            if rtsp_works:
+                url = rtsp_works[0]  # un RTSP funcional por IP
+                found += 1
+                print(f"[+] RTSP válido: {url}")
+                out.write(f"{url}\n")
+                out.flush()
+            else:
+                print(f"[-] Sin RTSP válido para {ip}")
+
+    print(f"\n[=] Completado. {found}/{len(ips)} IPs con RTSP válido.")
+    print(f"[=] Resultados guardados en {output_path}")
+    sys.exit(0 if found else 1)
 
 
 if __name__ == "__main__":
